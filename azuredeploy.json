@@ -1,0 +1,604 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      }
+    },
+    "uniqueDnsPrefixForVM": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique DNS Prefix for the Public IP used to access the Virtual Machine."
+      }
+    },
+    "vmNamePrefix": {
+      "type": "string",
+      "defaultValue": "Dynamic",
+      "metadata": {
+        "description": "VM Name Prefix for the Virtual Machine."
+      }
+    },
+    "publicIPAddressType": {
+      "type": "string",
+      "defaultValue": "Dynamic",
+      "allowedValues": [
+        "Dynamic",
+        "Static"
+      ],
+      "metadata": {
+        "description": "Type of public IP address"
+      }
+    },
+    "windowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2012-R2-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter"
+      ],
+      "metadata": {
+        "description": "The Windows version for the VM. This will pick a fully patched image of this given Windows version. Allowed values: 2008-R2-SP1, 2012-Datacenter, 2012-R2-Datacenter."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+
+      "publisherEmail": {
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "The email address of the owner of the service"
+      }
+    },
+    "publisherName": {
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "The name of the owner of the service"
+      }
+    },
+    "sku": {
+      "type": "string",
+      "allowedValues": [
+        "Developer",
+        "Standard",
+        "Premium"
+      ],
+      "defaultValue": "Developer",
+      "metadata": {
+        "description": "The pricing tier of this API Management service"
+      }
+    },
+    "skuCount": {
+      "type": "string",
+      "allowedValues": [
+        "1",
+        "2"
+      ],
+      "defaultValue": "1",
+      "metadata": {
+        "description": "The instance size of this API Management service."
+      }
+    },
+
+    "accountName": {
+			"type": "string",
+			"defaultValue": "[uniqueString(resourceGroup().id)]",
+			"metadata": {
+				"description": "Cosmos DB account name"
+			}
+		},
+		// "location": {
+		// 	"type": "string",
+		// 	"defaultValue": "[resourceGroup().location]",
+		// 	"metadata": {
+		// 		"description": "Location for the Cosmos DB account."
+		// 	}
+		// },
+		"primaryRegion": {
+			"type":"string",
+			  "metadata": {
+				"description": "The primary replica region for the Cosmos DB account."
+			}
+		},
+		"secondaryRegion":{
+			"type":"string",
+			"metadata": {
+			  "description": "The secondary replica region for the Cosmos DB account."
+		  }
+		},
+		"api": {
+			"type": "string",
+			"defaultValue": "Sql",
+			"allowedValues": [
+				"Sql",
+				"MongoDB",
+				"Cassandra",
+				"Gremlin",
+				"Table"
+			],
+			"metadata": {
+				"description": "Cosmos DB account type."
+			}
+		},
+		"defaultConsistencyLevel": {
+			"type": "string",
+			"defaultValue": "Session",
+			"allowedValues": [
+				"Eventual",
+				"ConsistentPrefix",
+				"Session",
+				"BoundedStaleness",
+				"Strong"
+			],
+			"metadata": {
+				"description": "The default consistency level of the Cosmos DB account."
+			}
+		},
+		"maxStalenessPrefix": {
+			"type": "int",
+			"defaultValue": 100000,
+			"minValue": 10,
+			"maxValue": 2147483647,
+			"metadata": {
+				"description": "Max stale requests. Required for BoundedStaleness. Valid ranges, Single Region: 10 to 1000000. Multi Region: 100000 to 1000000."
+			}
+		},
+		"maxIntervalInSeconds": {
+			"type": "int",
+			"defaultValue": 300,
+			"minValue": 5,
+			"maxValue": 86400,
+			"metadata": {
+				"description": "Max lag time (seconds). Required for BoundedStaleness. Valid ranges, Single Region: 5 to 84600. Multi Region: 300 to 86400."
+			}
+		},	
+		"multipleWriteLocations": {
+			"type": "bool",
+			"defaultValue": false,
+			"allowedValues": [
+				true,
+				false
+			],
+			"metadata": {
+				"description": "Enable multi-master to make all regions writable."
+			}
+		},
+		"automaticFailover": {
+			"type": "bool",
+			"defaultValue": true,
+			"allowedValues": [
+				true,
+				false
+			],
+			"metadata": {
+				"description": "Enable automatic failover for regions. Ignored when Multi-Master is enabled"
+			}
+		}
+    // "location": {
+    //   "type": "string",
+    //   "defaultValue": "[resourceGroup().location]",
+    //   "metadata": {
+    //     "description": "Location for all resources."
+    //   }
+    //  }
+  },
+  
+  "variables": {
+    "apiManagementServiceName": "[concat('apiservice', uniqueString(resourceGroup().id))]",
+    "imagePublisher": "MicrosoftWindowsServer",
+    "imageOffer": "WindowsServer",
+    "vmSize": "Standard_A2",
+    "VNetName": "Contoso_Network",
+    "Subnet1Name": "FrontendSubnet",
+    "Subnet2Name": "NVASubnet",
+    "Subnet3Name": "BackendSubnet",
+    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks', variables('VNetName'))]",
+    "subnet1Ref": "[concat(variables('vnetID'),'/subnets/', variables('Subnet1Name'))]",
+    "subnet2Ref": "[concat(variables('vnetID'),'/subnets/', variables('Subnet2Name'))]",
+    "subnet3Ref": "[concat(variables('vnetID'),'/subnets/', variables('Subnet3Name'))]",
+    "VNetAddressPrefix": "10.1.0.0/16",
+    "Subnet1Prefix": "10.1.0.0/24",
+    "Subnet2Prefix": "10.1.1.0/24",
+    "Subnet3Prefix": "10.1.2.0/24",
+    "routeTableName": "BasicNVA",
+    "NvmPrivateIPAddress": "10.1.1.4",
+    "nsgname": "DefaultNSG",
+    "scaleNumber": 3,
+
+    "accountName" : "[toLower(parameters('accountName'))]",
+		"apiType": 
+		{
+			"Sql": {
+				"kind": "GlobalDocumentDB",
+				"capabilities": []
+			},
+			"MongoDB": {
+				"kind": "MongoDB",
+				"capabilities": []
+			},
+			"Cassandra": {
+				"kind": "GlobalDocumentDB",
+				"capabilities": [
+					{
+						"name": "EnableCassandra"
+					}
+				]
+			},
+			"Gremlin": {
+				"kind": "GlobalDocumentDB",
+				"capabilities": [
+					{
+						"name": "EnableGremlin"
+					}
+				]
+			},
+			"Table": {
+				"kind": "GlobalDocumentDB",
+				"capabilities": [
+					{
+						"name": "EnableTable"
+					}
+				]
+			}
+		},
+		"consistencyPolicy":
+		{
+			"Eventual": {
+				"defaultConsistencyLevel": "Eventual"
+			},
+			"ConsistentPrefix": {
+				"defaultConsistencyLevel": "ConsistentPrefix"
+			},
+			"Session": {
+				"defaultConsistencyLevel": "Session"
+			},
+			"BoundedStaleness": {
+				"defaultConsistencyLevel": "BoundedStaleness",
+				"maxStalenessPrefix": "[parameters('maxStalenessPrefix')]",
+				"maxIntervalInSeconds": "[parameters('maxIntervalInSeconds')]"
+			},
+			"Strong": {
+				"defaultConsistencyLevel": "Strong"
+			}
+		},
+		"locations": 
+		[
+			{
+				"locationName": "[parameters('primaryRegion')]",
+				"failoverPriority": 0,
+				"isZoneRedundant": false
+			}, 
+			{
+				"locationName": "[parameters('secondaryRegion')]",
+				"failoverPriority": 1,
+				"isZoneRedundant": false
+			}
+		]
+
+    // "apiVer": "2015-06-15"
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[concat(parameters('uniqueDnsPrefixForVM'), copyIndex())]",
+      "location": "[parameters('location')]",
+      "copy": {
+        "name": "pubIPLoop",
+        "count": "[variables('scaleNumber')]"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "[parameters('publicIPAddressType')]",
+        "dnsSettings": {
+          "domainNameLabel": "[concat(parameters('uniqueDnsPrefixForVM'), copyIndex())]"
+        }
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "name": "DefaultNSG",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "rdp_rule",
+            "properties": {
+              "description": "Allow RDP",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3389",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/routeTables",
+      "name": "[variables('routeTableName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[parameters('location')]",
+      "properties": {
+        "routes": [
+          {
+            "name": "VirtualApplianceRouteToSubnet3",
+            "properties": {
+              "addressPrefix": "[variables('subnet3Prefix')]",
+              "nextHopType": "VirtualAppliance",
+              "nextHopIpAddress": "[variables('NvmPrivateIPAddress')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('VNetName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/routeTables/', variables('routeTableName'))]",
+        "[concat('Microsoft.Network/networkSecurityGroups/', variables('nsgname'))]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('VNetAddressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('Subnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('Subnet1Prefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgname'))]"
+              },
+              "routeTable": {
+                "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTableName'))]"
+              }
+            }
+          },
+          {
+            "name": "[variables('Subnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('Subnet2Prefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgname'))]"
+              }
+            }
+          },
+          {
+            "name": "[variables('Subnet3Name')]",
+            "properties": {
+              "addressPrefix": "[variables('Subnet3Prefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgname'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "Nic0",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/virtualNetworks/', variables('VNetName'))]",
+        "[concat('Microsoft.Network/publicIPAddresses/', parameters('uniqueDnsPrefixForVM'), '0')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(parameters('uniqueDnsPrefixForVM'), '0'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnet1Ref')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "Nic1",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', parameters('uniqueDnsPrefixForVM'), '1')]",
+        "[concat('Microsoft.Network/virtualNetworks/', variables('VNetName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "[variables('NvmPrivateIPAddress')]",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(parameters('uniqueDnsPrefixForVM'), '1'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnet2Ref')]"
+              }
+            }
+          }
+        ],
+        "enableIPForwarding": true
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "Nic2",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', parameters('uniqueDnsPrefixForVM'), '2')]",
+        "[concat('Microsoft.Network/virtualNetworks/', variables('VNetName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(parameters('uniqueDnsPrefixForVM'), '2'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnet3Ref')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2016-04-30-preview",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(parameters('vmNamePrefix'), copyIndex())]",
+      "location": "[parameters('location')]",
+      "copy": {
+        "name": "vmLoop",
+        "count": "[variables('scaleNumber')]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkInterfaces/Nic0')]",
+        "[concat('Microsoft.Network/networkInterfaces/Nic1')]",
+        "[concat('Microsoft.Network/networkInterfaces/Nic2')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[concat(parameters('vmNamePrefix'), copyIndex())]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "[parameters('windowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat('Nic', copyIndex()))]"
+            }
+          ]
+        }
+      }
+    },
+        {
+            "name": "functionName",
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2018-11-01",
+            "location": "[resourceGroup().location]",
+            "kind": "functionapp",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', 'serverFarmName')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', 'storageAccountName')]"
+            ],
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', 'serverFarmName')]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsDashboard",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', 'storageAccountName', ';AccountKey=', listKeys('storageAccountID','2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', 'storageAccountName', ';AccountKey=', listKeys('storageAccountID','2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', 'storageAccountName', ';AccountKey=', listKeys('storageAccountID','2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower('functionName')]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~2"
+                        },
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('microsoft.insights/components/', 'applicationInsightsName'), '2015-05-01').InstrumentationKey]"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "dotnet"
+                        }
+                    ]
+                }
+            }
+        },
+      {
+      "apiVersion": "2017-03-01",
+      "name": "[variables('apiManagementServiceName')]",
+      "type": "Microsoft.ApiManagement/service",
+      "location": "[parameters('location')]",
+      "tags": {},
+      "sku": {
+        "name": "[parameters('sku')]",
+        "capacity": "[parameters('skuCount')]"
+      },
+      "properties": {
+        "publisherEmail": "[parameters('publisherEmail')]",
+        "publisherName": "[parameters('publisherName')]"
+      }
+    },
+    {
+			"type": "Microsoft.DocumentDB/databaseAccounts",
+			"name": "[variables('accountName')]",
+			"apiVersion": "2020-03-01",
+			"location": "[parameters('location')]",
+			"kind": "[variables('apiType')[parameters('api')].kind]",
+			"properties": {
+				"consistencyPolicy": "[variables('consistencyPolicy')[parameters('defaultConsistencyLevel')]]",
+				"locations": "[variables('locations')]",
+				"databaseAccountOfferType": "Standard",
+				"enableAutomaticFailover": "[parameters('automaticFailover')]",
+				"capabilities": "[variables('apiType')[parameters('api')].capabilities]",
+				"enableMultipleWriteLocations": "[parameters('multipleWriteLocations')]"
+			}
+		}
+  ]
+}

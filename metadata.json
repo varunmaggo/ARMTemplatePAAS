@@ -1,0 +1,10 @@
+{
+    "$schema": "https://aka.ms/azure-quickstart-templates-metadata-schema#",
+    "type": "QuickStart",
+    "itemDisplayName": "User defined routes and Appliance",
+    "description": "This template deploys a Virtual Network, VMs in respective subnets and routes to direct traffic to the appliance",
+    "summary": "Test Assignment for the interview",
+    "githubUsername": "varunmaggo",
+    "dateUpdated": "2020-06-19"
+  }
+  
