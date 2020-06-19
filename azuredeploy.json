@@ -204,7 +204,7 @@
     "imagePublisher": "MicrosoftWindowsServer",
     "imageOffer": "WindowsServer",
     "vmSize": "Standard_A2",
-    "VNetName": "Contoso_Network",
+    "VNetName": "Vmtask_Vnet",
     "Subnet1Name": "FrontendSubnet",
     "Subnet2Name": "NVASubnet",
     "Subnet3Name": "BackendSubnet",
@@ -525,7 +525,7 @@
       }
     },
         {
-            "name": "functionName",
+            "name": "vmtask_functionName",
             "type": "Microsoft.Web/sites",
             "apiVersion": "2018-11-01",
             "location": "[resourceGroup().location]",

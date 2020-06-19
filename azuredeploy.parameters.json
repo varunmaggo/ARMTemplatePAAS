@@ -6,19 +6,19 @@
         "value": "vmtaskuser"
       },
       "adminPassword": {
-        "value": "GEN-PASSWORD"
+        "value": "Z!nc12345"
       },
       "uniqueDnsPrefixForVM": {
-        "value": "GEN-UNIQUE"
+        "value": "vmtask"
       },
       "vmNamePrefix": {
-        "value": "routedemo5VM"
+        "value": "vmtaskVM"
       },
       "publisherEmail": {
         "value": "varun.maggo@gmail.com"
       },
       "publisherName": {
-          "value": "GEN-UNIQUE"
+          "value": "Varun Maggo"
       },
 
       "primaryRegion": {
